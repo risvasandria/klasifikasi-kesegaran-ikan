@@ -13,7 +13,7 @@ MODEL_PATHS = {
 }
 
 # Nama kelas sesuai dataset
-CLASS_NAMES = ["Busuk", "Fresh", "Semi Fresh"]
+CLASS_NAMES = ["Busuk ", "Fresh", "Semi Fresh "]
 
 IMG_SIZE = (224, 224)
 
