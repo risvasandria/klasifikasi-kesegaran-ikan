@@ -1,7 +1,12 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-import tensorflow as tf
+
+# Gunakan tflite-runtime (lebih ringan, cocok untuk Streamlit Cloud)
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    import tensorflow.lite as tflite
 
 # =============================================
 # KONFIGURASI MODEL
@@ -12,7 +17,7 @@ MODEL_PATHS = {
     "ResNet50": "models/resnet50_model.tflite",
 }
 
-# Nama kelas sesuai dataset (urutan sama seperti saat training)
+# Nama kelas sesuai dataset
 CLASS_NAMES = ["Busuk", "Fresh", "Semi Fresh"]
 
 IMG_SIZE = (224, 224)
@@ -23,7 +28,7 @@ IMG_SIZE = (224, 224)
 @st.cache_resource
 def load_tflite_model(model_path):
     """Load model TFLite dan siapkan interpreter-nya"""
-    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter = tflite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
     return interpreter
 
@@ -61,13 +66,13 @@ CLASS_EMOJI = {
 # TAMPILAN APLIKASI STREAMLIT
 # =============================================
 st.set_page_config(
-    page_title="Klasifikasi Kesegaran - Deep Learning",
-    page_icon="🔍",
+    page_title="Klasifikasi Kesegaran Ikan - Deep Learning",
+    page_icon="🐟",
     layout="centered"
 )
 
-st.title("🔍 Klasifikasi Kesegaran Bahan")
-st.markdown("Upload foto bahan makanan, lalu sistem akan mendeteksi apakah **Busuk**, **Fresh**, atau **Semi Fresh**.")
+st.title("🐟 Klasifikasi Kesegaran Ikan")
+st.markdown("Upload foto ikan, lalu sistem akan mendeteksi apakah **Busuk**, **Fresh**, atau **Semi Fresh**.")
 
 # --- Sidebar ---
 st.sidebar.header("⚙️ Pengaturan")
@@ -84,7 +89,7 @@ for cls in CLASS_NAMES:
 
 # --- Upload Gambar ---
 uploaded_file = st.file_uploader(
-    "📁 Upload Gambar (JPG / PNG / JPEG)",
+    "📁 Upload Gambar Ikan (JPG / PNG / JPEG)",
     type=["jpg", "jpeg", "png"]
 )
 
@@ -102,24 +107,18 @@ if uploaded_file is not None:
 
         with st.spinner(f"Sedang menganalisis dengan {selected_model_name}..."):
             try:
-                # Load model yang dipilih
                 interpreter = load_tflite_model(MODEL_PATHS[selected_model_name])
-
-                # Proses gambar & prediksi
                 img_array = preprocess_image(image)
                 predictions = predict_tflite(interpreter, img_array)
 
-                # Ambil hasil terbaik
                 predicted_index = np.argmax(predictions)
                 predicted_class = CLASS_NAMES[predicted_index]
                 confidence = predictions[predicted_index] * 100
                 emoji = CLASS_EMOJI.get(predicted_class, "⚪")
 
-                # Tampilkan hasil utama
                 st.success(f"{emoji} **{predicted_class}**")
                 st.metric("Tingkat Keyakinan", f"{confidence:.2f}%")
 
-                # Tampilkan probabilitas semua kelas
                 st.markdown("---")
                 st.markdown("**Probabilitas per kelas:**")
                 for i, cls in enumerate(CLASS_NAMES):
@@ -136,20 +135,20 @@ if uploaded_file is not None:
                 st.error(f"❌ Terjadi error: {str(e)}")
 
 else:
-    st.info("👆 Silakan upload gambar terlebih dahulu untuk memulai klasifikasi.")
+    st.info("👆 Silakan upload gambar ikan terlebih dahulu untuk memulai klasifikasi.")
 
     st.markdown("---")
     st.markdown("### 📖 Panduan Singkat")
     st.markdown("""
     1. Pilih model di **sidebar kiri** (CNN, EfficientNet, atau ResNet50)
     2. Klik tombol **Browse files** di atas
-    3. Upload foto bahan makanan kamu
+    3. Upload foto ikan kamu
     4. Hasil klasifikasi akan langsung muncul!
     """)
 
 # --- Footer ---
 st.markdown("---")
 st.markdown(
-    "<div style='text-align:center; color:gray;'>Dibuat dengan ❤️ menggunakan Streamlit & TensorFlow Lite</div>",
+    "<div style='text-align:center; color:gray;'>Dibuat dengan ❤️ menggunakan Streamlit & TFLite Runtime</div>",
     unsafe_allow_html=True
 )
