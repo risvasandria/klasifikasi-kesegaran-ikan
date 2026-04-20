@@ -3,10 +3,7 @@ import numpy as np
 from PIL import Image
 
 # Gunakan tflite-runtime (lebih ringan, cocok untuk Streamlit Cloud)
-try:
-    import tflite_runtime.interpreter as tflite
-except ImportError:
-    import tensorflow.lite as tflite
+import onnxruntime as ort
 
 # =============================================
 # KONFIGURASI MODEL
