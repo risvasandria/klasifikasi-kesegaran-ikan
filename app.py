@@ -1,54 +1,21 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-
-# Gunakan tflite-runtime (lebih ringan, cocok untuk Streamlit Cloud)
 import onnxruntime as ort
 
 # =============================================
 # KONFIGURASI MODEL
 # =============================================
 MODEL_PATHS = {
-    "CNN": "models/cnn_model.tflite",
-    "EfficientNet": "models/efficientnet_model.tflite",
-    "ResNet50": "models/resnet50_model.tflite",
+    "CNN": "models/cnn_model.onnx",
+    "EfficientNet": "models/efficientnet_model.onnx",
+    "ResNet50": "models/resnet50_model.onnx",
 }
 
 # Nama kelas sesuai dataset
 CLASS_NAMES = ["Busuk", "Fresh", "Semi Fresh"]
 
 IMG_SIZE = (224, 224)
-
-# =============================================
-# FUNGSI LOAD MODEL TFLITE
-# =============================================
-@st.cache_resource
-def load_tflite_model(model_path):
-    """Load model TFLite dan siapkan interpreter-nya"""
-    interpreter = tflite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
-
-def predict_tflite(interpreter, img_array):
-    """Jalankan prediksi menggunakan model TFLite"""
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-
-    input_data = img_array.astype(np.float32)
-    interpreter.set_tensor(input_details[0]['index'], input_data)
-    interpreter.invoke()
-
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    return output_data[0]
-
-def preprocess_image(image):
-    """Ubah gambar yang diupload menjadi format yang bisa dibaca model"""
-    img = image.convert("RGB")
-    img = img.resize(IMG_SIZE)
-    img_array = np.array(img, dtype=np.float32)
-    img_array = img_array / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
 
 # =============================================
 # EMOJI PER KELAS
@@ -60,16 +27,37 @@ CLASS_EMOJI = {
 }
 
 # =============================================
+# FUNGSI LOAD MODEL ONNX
+# =============================================
+@st.cache_resource
+def load_onnx_model(model_path):
+    session = ort.InferenceSession(model_path)
+    return session
+
+def predict_onnx(session, img_array):
+    input_name = session.get_inputs()[0].name
+    result = session.run(None, {input_name: img_array})
+    return result[0][0]
+
+def preprocess_image(image):
+    img = image.convert("RGB")
+    img = img.resize(IMG_SIZE)
+    img_array = np.array(img, dtype=np.float32)
+    img_array = img_array / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
+    return img_array
+
+# =============================================
 # TAMPILAN APLIKASI STREAMLIT
 # =============================================
 st.set_page_config(
-    page_title="Klasifikasi Kesegaran Ikan - Deep Learning",
+    page_title="Klasifikasi Kesegaran Ikan",
     page_icon="🐟",
     layout="centered"
 )
 
 st.title("🐟 Klasifikasi Kesegaran Ikan")
-st.markdown("Upload foto ikan, lalu sistem akan mendeteksi apakah **Busuk**, **Fresh**, atau **Semi Fresh**.")
+st.markdown("Upload foto ikan, sistem akan mendeteksi apakah **Busuk**, **Fresh**, atau **Semi Fresh**.")
 
 # --- Sidebar ---
 st.sidebar.header("⚙️ Pengaturan")
@@ -92,7 +80,6 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -101,16 +88,15 @@ if uploaded_file is not None:
 
     with col2:
         st.subheader("📊 Hasil Prediksi")
-
         with st.spinner(f"Sedang menganalisis dengan {selected_model_name}..."):
             try:
-                interpreter = load_tflite_model(MODEL_PATHS[selected_model_name])
+                session = load_onnx_model(MODEL_PATHS[selected_model_name])
                 img_array = preprocess_image(image)
-                predictions = predict_tflite(interpreter, img_array)
+                predictions = predict_onnx(session, img_array)
 
                 predicted_index = np.argmax(predictions)
                 predicted_class = CLASS_NAMES[predicted_index]
-                confidence = predictions[predicted_index] * 100
+                confidence = float(predictions[predicted_index]) * 100
                 emoji = CLASS_EMOJI.get(predicted_class, "⚪")
 
                 st.success(f"{emoji} **{predicted_class}**")
@@ -125,15 +111,13 @@ if uploaded_file is not None:
 
             except FileNotFoundError:
                 st.error(
-                    f"❌ File model `{MODEL_PATHS[selected_model_name]}` tidak ditemukan!\n\n"
-                    "Pastikan folder `models/` sudah ada di GitHub dan berisi file `.tflite`."
+                    f"❌ File model tidak ditemukan!\n\n"
+                    "Pastikan folder `models/` berisi file `.onnx` di GitHub."
                 )
             except Exception as e:
                 st.error(f"❌ Terjadi error: {str(e)}")
-
 else:
-    st.info("👆 Silakan upload gambar ikan terlebih dahulu untuk memulai klasifikasi.")
-
+    st.info("👆 Silakan upload gambar ikan terlebih dahulu.")
     st.markdown("---")
     st.markdown("### 📖 Panduan Singkat")
     st.markdown("""
@@ -146,6 +130,6 @@ else:
 # --- Footer ---
 st.markdown("---")
 st.markdown(
-    "<div style='text-align:center; color:gray;'>Dibuat dengan ❤️ menggunakan Streamlit & TFLite Runtime</div>",
+    "<div style='text-align:center; color:gray;'>Dibuat dengan ❤️ menggunakan Streamlit & ONNX Runtime</div>",
     unsafe_allow_html=True
 )
